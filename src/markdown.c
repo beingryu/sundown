@@ -74,6 +74,8 @@ static size_t char_autolink_email(struct buf *ob, struct sd_markdown *rndr, uint
 static size_t char_autolink_www(struct buf *ob, struct sd_markdown *rndr, uint8_t *data, size_t offset, size_t size);
 static size_t char_link(struct buf *ob, struct sd_markdown *rndr, uint8_t *data, size_t offset, size_t size);
 static size_t char_superscript(struct buf *ob, struct sd_markdown *rndr, uint8_t *data, size_t offset, size_t size);
+static size_t char_subscript(struct buf *ob, struct sd_markdown *rndr, uint8_t *data, size_t offset, size_t size);
+
 
 enum markdown_char_t {
 	MD_CHAR_NONE = 0,
@@ -88,6 +90,7 @@ enum markdown_char_t {
 	MD_CHAR_AUTOLINK_EMAIL,
 	MD_CHAR_AUTOLINK_WWW,
 	MD_CHAR_SUPERSCRIPT,
+	MD_CHAR_SUBSCRIPT,
 };
 
 static char_trigger markdown_char_ptrs[] = {
@@ -103,6 +106,7 @@ static char_trigger markdown_char_ptrs[] = {
 	&char_autolink_email,
 	&char_autolink_www,
 	&char_superscript,
+	&char_subscript,
 };
 
 /* render • structure containing one particular render */
@@ -1104,6 +1108,45 @@ char_superscript(struct buf *ob, struct sd_markdown *rndr, uint8_t *data, size_t
 	rndr_popbuf(rndr, BUFFER_SPAN);
 
 	return (sup_start == 2) ? sup_len + 1 : sup_len;
+}
+
+// i was too lazy to refactor these code........ sorry :$
+static size_t
+char_subscript(struct buf *ob, struct sd_markdown *rndr, uint8_t *data, size_t offset, size_t size)
+{
+	size_t sub_start, sub_len;
+	struct buf *sup;
+
+	if (!rndr->cb.subscript)
+		return 0;
+
+	if (size < 2)
+		return 0;
+
+	if (data[1] == '(') {
+		sub_start = sub_len = 2;
+
+		while (sub_len < size && data[sub_len] != ')' && data[sub_len - 1] != '\\')
+			sub_len++;
+
+		if (sub_len == size)
+			return 0;
+	} else {
+		sub_start = sub_len = 1;
+
+		while (sub_len < size && !_isspace(data[sub_len]))
+			sub_len++;
+	}
+
+	if (sub_len - sub_start == 0)
+		return (sub_start == 2) ? 3 : 0;
+
+	sup = rndr_newbuf(rndr, BUFFER_SPAN);
+	parse_inline(sup, rndr, data + sub_start, sub_len - sub_start);
+	rndr->cb.subscript(ob, sup, rndr->opaque);
+	rndr_popbuf(rndr, BUFFER_SPAN);
+
+	return (sub_start == 2) ? sub_len + 1 : sub_len;
 }
 
 /*********************************
@@ -2410,7 +2453,6 @@ sd_markdown_new(
 
 	if (md->cb.emphasis || md->cb.double_emphasis || md->cb.triple_emphasis) {
 		md->active_char['*'] = MD_CHAR_EMPHASIS;
-		md->active_char['_'] = MD_CHAR_EMPHASIS;
 		if (extensions & MKDEXT_STRIKETHROUGH)
 			md->active_char['~'] = MD_CHAR_EMPHASIS;
 	}
@@ -2436,6 +2478,8 @@ sd_markdown_new(
 
 	if (extensions & MKDEXT_SUPERSCRIPT)
 		md->active_char['^'] = MD_CHAR_SUPERSCRIPT;
+	if (extensions & MKDEXT_SUBSCRIPT)
+		md->active_char['_'] = MD_CHAR_SUBSCRIPT;
 
 	/* Extension data */
 	md->ext_flags = extensions;
