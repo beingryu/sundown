@@ -1,5 +1,6 @@
 *.o
 libsundown.so*
 sundown
+sundown.js
 smartypants
 *.exe
