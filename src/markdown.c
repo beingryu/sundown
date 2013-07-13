@@ -502,7 +502,7 @@ parse_emph1(struct buf *ob, struct sd_markdown *rndr, uint8_t *data, size_t size
 		if (data[i] == c && !_isspace(data[i - 1])) {
 
 			if (rndr->ext_flags & MKDEXT_NO_INTRA_EMPHASIS) {
-				if (!(i + 1 == size || _isspace(data[i + 1]) || ispunct(data[i + 1])))
+				if (i + 1 < size && isalnum(data[i + 1]))
 					continue;
 			}
 
@@ -596,6 +596,11 @@ char_emphasis(struct buf *ob, struct sd_markdown *rndr, uint8_t *data, size_t of
 {
 	uint8_t c = data[0];
 	size_t ret;
+
+	if (rndr->ext_flags & MKDEXT_NO_INTRA_EMPHASIS) {
+		if (offset > 0 && !_isspace(data[-1]) && data[-1] != '>')
+			return 0;
+	}
 
 	if (size > 2 && data[1] != c) {
 		/* whitespace cannot follow an opening emphasis;
@@ -772,7 +777,7 @@ char_autolink_www(struct buf *ob, struct sd_markdown *rndr, uint8_t *data, size_
 
 	link = rndr_newbuf(rndr, BUFFER_SPAN);
 
-	if ((link_len = sd_autolink__www(&rewind, link, data, offset, size)) > 0) {
+	if ((link_len = sd_autolink__www(&rewind, link, data, offset, size, 0)) > 0) {
 		link_url = rndr_newbuf(rndr, BUFFER_SPAN);
 		BUFPUTSL(link_url, "http://");
 		bufput(link_url, link->data, link->size);
@@ -804,7 +809,7 @@ char_autolink_email(struct buf *ob, struct sd_markdown *rndr, uint8_t *data, siz
 
 	link = rndr_newbuf(rndr, BUFFER_SPAN);
 
-	if ((link_len = sd_autolink__email(&rewind, link, data, offset, size)) > 0) {
+	if ((link_len = sd_autolink__email(&rewind, link, data, offset, size, 0)) > 0) {
 		ob->size -= rewind;
 		rndr->cb.autolink(ob, link, MKDA_EMAIL, rndr->opaque);
 	}
@@ -824,7 +829,7 @@ char_autolink_url(struct buf *ob, struct sd_markdown *rndr, uint8_t *data, size_
 
 	link = rndr_newbuf(rndr, BUFFER_SPAN);
 
-	if ((link_len = sd_autolink__url(&rewind, link, data, offset, size)) > 0) {
+	if ((link_len = sd_autolink__url(&rewind, link, data, offset, size, 0)) > 0) {
 		ob->size -= rewind;
 		rndr->cb.autolink(ob, link, MKDA_NORMAL, rndr->opaque);
 	}
