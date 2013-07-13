@@ -39,7 +39,10 @@ all:		sundown.js html_blocks
 
 # libraries
 
-sundown.js: $(SUNDOWN_SRC)
+sundown.js: sundown.prepend.js sundown.body.js sundown.append.js
+	cat sundown.prepend.js sundown.body.js sundown.append.js > $@
+
+sundown.body.js: $(SUNDOWN_SRC) 
 	$(CC) $(LDFLAGS) $^ -o $@
 
 # perfect hashing
@@ -52,7 +55,7 @@ src/html_blocks.h: html_block_names.txt
 # housekeeping
 clean:
 	rm -f src/*.o html/*.o examples/*.o
-	rm -f libsundown.so libsundown.so.1 sundown.js smartypants.js
+	rm -f libsundown.so libsundown.so.1 sundown.js sundown.body.js smartypants.js
 	rm -rf $(DEPDIR)
 
 
