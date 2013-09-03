@@ -66,6 +66,7 @@ typedef size_t
 static size_t char_emphasis(struct buf *ob, struct sd_markdown *rndr, uint8_t *data, size_t offset, size_t size);
 static size_t char_linebreak(struct buf *ob, struct sd_markdown *rndr, uint8_t *data, size_t offset, size_t size);
 static size_t char_codespan(struct buf *ob, struct sd_markdown *rndr, uint8_t *data, size_t offset, size_t size);
+static size_t char_mathspan(struct buf *ob, struct sd_markdown *rndr, uint8_t *data, size_t offset, size_t size);
 static size_t char_escape(struct buf *ob, struct sd_markdown *rndr, uint8_t *data, size_t offset, size_t size);
 static size_t char_entity(struct buf *ob, struct sd_markdown *rndr, uint8_t *data, size_t offset, size_t size);
 static size_t char_langle_tag(struct buf *ob, struct sd_markdown *rndr, uint8_t *data, size_t offset, size_t size);
@@ -89,6 +90,7 @@ enum markdown_char_t {
 	MD_CHAR_AUTOLINK_EMAIL,
 	MD_CHAR_AUTOLINK_WWW,
 	MD_CHAR_SUB_SUPERSCRIPT,
+	MD_CHAR_MATHSPAN,
 };
 
 static char_trigger markdown_char_ptrs[] = {
@@ -104,6 +106,7 @@ static char_trigger markdown_char_ptrs[] = {
 	&char_autolink_email,
 	&char_autolink_www,
 	&char_sub_superscript,
+	&char_mathspan,
 };
 
 /* render • structure containing one particular render */
@@ -687,11 +690,55 @@ char_codespan(struct buf *ob, struct sd_markdown *rndr, uint8_t *data, size_t of
 }
 
 
+/* char_mathspan • '$' parsing a math span (assuming mathspan != 0) */
+static size_t
+char_mathspan(struct buf *ob, struct sd_markdown *rndr, uint8_t *data, size_t offset, size_t size)
+{
+	size_t end, nb = 1, f_begin, f_end;
+	int is_escaping = 0;
+
+	/* finding the next delimiter */
+	for (end = nb; end < size; end++)
+	{
+	    if (is_escaping)
+	    {
+	        is_escaping = 0;
+	        continue;
+	    }
+	    if (data[end] == '\\')
+	    {
+	        is_escaping = 1;
+	        continue;
+	    }
+	    if (data[end] == '$')
+            break;
+    }
+    end++;
+
+	if (end > size)
+		return 0; /* no matching delimiter */
+
+	f_begin = nb;
+	f_end = end - nb;
+
+	/* real math span */
+	if (f_begin < f_end) {
+		struct buf work = { data + f_begin, f_end - f_begin, 0, 0 };
+		if (!rndr->cb.mathspan(ob, &work, rndr->opaque))
+			end = 0;
+	} else {
+		if (!rndr->cb.mathspan(ob, 0, rndr->opaque))
+			end = 0;
+	}
+
+	return end;
+}
+
 /* char_escape • '\\' backslash escape */
 static size_t
 char_escape(struct buf *ob, struct sd_markdown *rndr, uint8_t *data, size_t offset, size_t size)
 {
-	static const char *escape_chars = "\\`*_{}[]()#+-.!:|&<>^~";
+	static const char *escape_chars = "\\`*_{}[]()#+-.!:|&<>^~$";
 	struct buf work = { 0, 0, 0, 0 };
 
 	if (size > 1) {
@@ -1195,6 +1242,37 @@ prefix_codefence(uint8_t *data, size_t size)
 	return i;
 }
 
+/* check if a line begins with two or more $s; return the
+ * width of the fence */
+static size_t
+prefix_blockmath(uint8_t *data, size_t size)
+{
+	size_t i = 0, n = 0;
+	uint8_t c;
+
+	/* skipping initial spaces */
+	if (size < 3) return 0;
+	if (data[0] == ' ') { i++;
+	if (data[1] == ' ') { i++;
+	if (data[2] == ' ') { i++; } } }
+
+	/* looking at the hrule uint8_t */
+	if (i + 2 >= size || data[i] != '$')
+		return 0;
+
+	c = data[i];
+
+	/* the whole line must be the uint8_t or whitespace */
+	while (i < size && data[i] == c) {
+		n++; i++;
+	}
+
+	if (n < 2)
+		return 0;
+
+	return i;
+}
+
 /* check if a line is a code fence; return its size if it is */
 static size_t
 is_codefence(uint8_t *data, size_t size, struct buf *syntax)
@@ -1241,6 +1319,29 @@ is_codefence(uint8_t *data, size_t size, struct buf *syntax)
 		syntax->data = syn_start;
 		syntax->size = syn_len;
 	}
+
+	while (i < size && data[i] != '\n') {
+		if (!_isspace(data[i]))
+			return 0;
+
+		i++;
+	}
+
+	return i + 1;
+}
+
+/* check if a line is a code fence; return its size if it is */
+static size_t
+is_blockmath(uint8_t *data, size_t size)
+{
+	size_t i = 0;
+
+	i = prefix_blockmath(data, size);
+	if (i == 0)
+		return 0;
+
+	while (i < size && data[i] == ' ')
+		i++;
 
 	while (i < size && data[i] != '\n') {
 		if (!_isspace(data[i]))
@@ -1486,6 +1587,13 @@ parse_paragraph(struct buf *ob, struct sd_markdown *rndr, uint8_t *data, size_t 
 				end = i;
 				break;
 			}
+
+			/* see if a code fence starts here */
+			if ((rndr->ext_flags & MKDEXT_MATHJAX_SUPPORT) != 0 &&
+				is_blockmath(data + i, size - i) != 0) {
+				end = i;
+				break;
+			}
 		}
 
 		i = end;
@@ -1582,6 +1690,49 @@ parse_fencedcode(struct buf *ob, struct sd_markdown *rndr, uint8_t *data, size_t
 
 	if (rndr->cb.blockcode)
 		rndr->cb.blockcode(ob, work, lang.size ? &lang : NULL, rndr->opaque);
+
+	rndr_popbuf(rndr, BUFFER_BLOCK);
+	return beg;
+}
+
+/* parse_blockmath • handles parsing of a block-level LaTeX style displayed math */
+static size_t
+parse_blockmath(struct buf *ob, struct sd_markdown *rndr, uint8_t *data, size_t size)
+{
+	size_t beg, end;
+	struct buf *work = 0;
+
+	beg = is_blockmath(data, size);
+	if (beg == 0) return 0;
+
+	work = rndr_newbuf(rndr, BUFFER_BLOCK);
+
+	while (beg < size) {
+		size_t fence_end;
+
+		fence_end = is_blockmath(data + beg, size - beg);
+		if (fence_end != 0) {
+			beg += fence_end;
+			break;
+		}
+
+		for (end = beg + 1; end < size && data[end - 1] != '\n'; end++);
+
+		if (beg < end) {
+			/* verbatim copy to the working buffer,
+				escaping entities */
+			if (is_empty(data + beg, end - beg))
+				bufputc(work, '\n');
+			else bufput(work, data + beg, end - beg);
+		}
+		beg = end;
+	}
+
+	if (work->size && work->data[work->size - 1] != '\n')
+		bufputc(work, '\n');
+
+	if (rndr->cb.blockmath)
+		rndr->cb.blockmath(ob, work, rndr->opaque);
 
 	rndr_popbuf(rndr, BUFFER_BLOCK);
 	return beg;
@@ -1685,8 +1836,12 @@ parse_listitem(struct buf *ob, struct sd_markdown *rndr, uint8_t *data, size_t s
 		pre = i;
 
 		if (rndr->ext_flags & MKDEXT_FENCED_CODE) {
-			if (is_codefence(data + beg + i, end - beg - i, NULL) != 0)
-				in_fence = !in_fence;
+			if ((in_fence == 0 || in_fence == 1) && is_codefence(data + beg + i, end - beg - i, NULL) != 0)
+				in_fence ^= 1;
+		}
+		if (rndr->ext_flags & MKDEXT_MATHJAX_SUPPORT) {
+			if ((in_fence == 0 || in_fence == 2) && is_blockmath(data + beg + i, end - beg - i) != 0)
+				in_fence ^= 2;
 		}
 
 		/* Only check for new list items if we are **not** inside
@@ -2228,6 +2383,10 @@ parse_block(struct buf *ob, struct sd_markdown *rndr, uint8_t *data, size_t size
 			(i = parse_fencedcode(ob, rndr, txt_data, end)) != 0)
 			beg += i;
 
+		else if ((rndr->ext_flags & MKDEXT_MATHJAX_SUPPORT) != 0 &&
+		    (i = parse_blockmath(ob, rndr, txt_data, end)) != 0)
+		    beg += i;
+
 		else if ((rndr->ext_flags & MKDEXT_TABLES) != 0 &&
 			(i = parse_table(ob, rndr, txt_data, end)) != 0)
 			beg += i;
@@ -2449,6 +2608,9 @@ sd_markdown_new(
 		md->active_char['^'] = MD_CHAR_SUB_SUPERSCRIPT;
 	if (extensions & MKDEXT_SUBSCRIPT)
 		md->active_char['_'] = MD_CHAR_SUB_SUPERSCRIPT;
+
+	if (extensions & MKDEXT_MATHJAX_SUPPORT)
+	    md->active_char['$'] = MD_CHAR_MATHSPAN;
 
 	/* Extension data */
 	md->ext_flags = extensions;

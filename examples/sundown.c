@@ -62,7 +62,7 @@ main(int argc, char **argv)
 	ob = bufnew(OUTPUT_UNIT);
 
 	sdhtml_renderer(&callbacks, &options, 0);
-	markdown = sd_markdown_new(MKDEXT_STRIKETHROUGH | MKDEXT_NO_INTRA_EMPHASIS | MKDEXT_TABLES | MKDEXT_FENCED_CODE | MKDEXT_AUTOLINK | MKDEXT_SPACE_HEADERS | MKDEXT_SUPERSCRIPT | MKDEXT_SUBSCRIPT , 16, &callbacks, &options);
+	markdown = sd_markdown_new(MKDEXT_STRIKETHROUGH | MKDEXT_NO_INTRA_EMPHASIS | MKDEXT_TABLES | MKDEXT_FENCED_CODE | MKDEXT_AUTOLINK | MKDEXT_SPACE_HEADERS | MKDEXT_SUPERSCRIPT | MKDEXT_SUBSCRIPT | MKDEXT_MATHJAX_SUPPORT , 16, &callbacks, &options);
 
 	sd_markdown_render(ob, ib->data, ib->size, markdown);
 	sd_markdown_free(markdown);

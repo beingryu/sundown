@@ -116,6 +116,24 @@ rndr_autolink(struct buf *ob, const struct buf *link, enum mkd_autolink type, vo
 }
 
 static void
+rndr_blockmath(struct buf *ob, const struct buf *text, void *opaque)
+{
+	if (ob->size) bufputc(ob, '\n');
+
+	BUFPUTSL(ob, "<div class=\"mathjax-preview\">");
+	if (text)
+		escape_html(ob, text->data, text->size);
+	BUFPUTSL(ob, "</div>");
+
+	BUFPUTSL(ob, "<script type=\"math/tex; mode=display\">");
+
+	if (text)
+		escape_html(ob, text->data, text->size);
+
+	BUFPUTSL(ob, "</script>");
+}
+
+static void
 rndr_blockcode(struct buf *ob, const struct buf *text, const struct buf *lang, void *opaque)
 {
 	if (ob->size) bufputc(ob, '\n');
@@ -158,6 +176,19 @@ rndr_blockquote(struct buf *ob, const struct buf *text, void *opaque)
 	BUFPUTSL(ob, "<blockquote>\n");
 	if (text) bufput(ob, text->data, text->size);
 	BUFPUTSL(ob, "</blockquote>\n");
+}
+
+static int
+rndr_mathspan(struct buf *ob, const struct buf *text, void *opaque)
+{
+	BUFPUTSL(ob, "<span class=\"mathjax-preview\">");
+	if (text)
+		escape_html(ob, text->data, text->size);
+	BUFPUTSL(ob, "</span>");
+	BUFPUTSL(ob, "<script type=\"math/tex\">");
+	if (text) escape_html(ob, text->data, text->size);
+	BUFPUTSL(ob, "</script>");
+	return 1;
 }
 
 static int
@@ -556,6 +587,7 @@ sdhtml_toc_renderer(struct sd_callbacks *callbacks, struct html_renderopt *optio
 		NULL,
 		NULL,
 		NULL,
+		NULL,
 		toc_header,
 		NULL,
 		NULL,
@@ -566,6 +598,7 @@ sdhtml_toc_renderer(struct sd_callbacks *callbacks, struct html_renderopt *optio
 		NULL,
 
 		NULL,
+		rndr_mathspan,
 		rndr_codespan,
 		rndr_double_emphasis,
 		rndr_emphasis,
@@ -596,6 +629,7 @@ sdhtml_renderer(struct sd_callbacks *callbacks, struct html_renderopt *options, 
 {
 	static const struct sd_callbacks cb_default = {
 		rndr_blockcode,
+		rndr_blockmath,
 		rndr_blockquote,
 		rndr_raw_block,
 		rndr_header,
@@ -608,6 +642,7 @@ sdhtml_renderer(struct sd_callbacks *callbacks, struct html_renderopt *options, 
 		rndr_tablecell,
 
 		rndr_autolink,
+		rndr_mathspan,
 		rndr_codespan,
 		rndr_double_emphasis,
 		rndr_emphasis,

@@ -42,7 +42,7 @@ libsundown.so:	libsundown.so.1
 	ln -f -s $^ $@
 
 libsundown.so.1: $(SUNDOWN_SRC)
-	$(CC) $(LDFLAGS) -shared -Wl $^ -o $@
+	$(CC) $(LDFLAGS) -shared -Wall $^ -o $@
 
 # executables
 

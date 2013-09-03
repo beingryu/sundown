@@ -60,12 +60,14 @@ enum mkd_extensions {
 	MKDEXT_SUPERSCRIPT = (1 << 7),
 	MKDEXT_LAX_SPACING = (1 << 8),
 	MKDEXT_SUBSCRIPT = (1 << 9),
+	MKDEXT_MATHJAX_SUPPORT = (1 << 30),
 };
 
 /* sd_callbacks - functions for rendering parsed data */
 struct sd_callbacks {
 	/* block level callbacks - NULL skips the block */
 	void (*blockcode)(struct buf *ob, const struct buf *text, const struct buf *lang, void *opaque);
+	void (*blockmath)(struct buf *ob, const struct buf *text, void *opaque);
 	void (*blockquote)(struct buf *ob, const struct buf *text, void *opaque);
 	void (*blockhtml)(struct buf *ob,const  struct buf *text, void *opaque);
 	void (*header)(struct buf *ob, const struct buf *text, int level, void *opaque);
@@ -80,6 +82,7 @@ struct sd_callbacks {
 
 	/* span level callbacks - NULL or return 0 prints the span verbatim */
 	int (*autolink)(struct buf *ob, const struct buf *link, enum mkd_autolink type, void *opaque);
+	int (*mathspan)(struct buf *ob, const struct buf *text, void *opaque);
 	int (*codespan)(struct buf *ob, const struct buf *text, void *opaque);
 	int (*double_emphasis)(struct buf *ob, const struct buf *text, void *opaque);
 	int (*emphasis)(struct buf *ob, const struct buf *text, void *opaque);
