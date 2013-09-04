@@ -128,7 +128,7 @@ rndr_blockmath(struct buf *ob, const struct buf *text, void *opaque)
 	BUFPUTSL(ob, "<script type=\"math/tex; mode=display\">");
 
 	if (text)
-		escape_html(ob, text->data, text->size);
+		bufput(ob, text->data, text->size);
 
 	BUFPUTSL(ob, "</script>");
 }
@@ -186,7 +186,8 @@ rndr_mathspan(struct buf *ob, const struct buf *text, void *opaque)
 		escape_html(ob, text->data, text->size);
 	BUFPUTSL(ob, "</span>");
 	BUFPUTSL(ob, "<script type=\"math/tex\">");
-	if (text) escape_html(ob, text->data, text->size);
+	if (text)
+	    bufput(ob, text->data, text->size);
 	BUFPUTSL(ob, "</script>");
 	return 1;
 }
