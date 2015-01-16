@@ -19,7 +19,7 @@ emscripten_markdown(char *str)
 	ob = bufnew(1024);
 
 	sdhtml_renderer(&callbacks, &options, HTML_HARD_WRAP | HTML_TOC);
-	markdown = sd_markdown_new(MKDEXT_STRIKETHROUGH | MKDEXT_NO_INTRA_EMPHASIS | MKDEXT_TABLES | MKDEXT_FENCED_CODE | MKDEXT_AUTOLINK | MKDEXT_SUPERSCRIPT | MKDEXT_SUBSCRIPT | MKDEXT_LAX_SPACING | MKDEXT_MATHJAX_SUPPORT, 16, &callbacks, &options);
+	markdown = sd_markdown_new(MKDEXT_STRIKETHROUGH | MKDEXT_NO_INTRA_EMPHASIS | MKDEXT_TABLES | MKDEXT_FENCED_CODE | MKDEXT_AUTOLINK | MKDEXT_SUPERSCRIPT | MKDEXT_SUBSCRIPT | MKDEXT_LAX_SPACING | MKDEXT_MATHJAX_SUPPORT | MKDEXT_SPACE_HEADERS, 16, &callbacks, &options);
 
 	sd_markdown_render(ob, (uint8_t *)str, strlen(str), markdown);
 	sd_markdown_free(markdown);
